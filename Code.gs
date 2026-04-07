@@ -174,52 +174,71 @@ function getThreadsConfig() {
   };
 }
 
-function publishToThreads(body, imageUrl) {
+function publishToThreads(body, imageUrls) {
   var config = getThreadsConfig();
   if (!config.accessToken) {
     return { success: false, error: 'THREADS_ACCESS_TOKEN が設定されていません' };
   }
 
-  try {
-    // Step 1: メディアコンテナ作成
-    var containerPayload = {
-      text: body,
-      access_token: config.accessToken
-    };
-
-    if (imageUrl) {
-      containerPayload.media_type = 'IMAGE';
-      containerPayload.image_url = imageUrl;
+  // imageUrls: カンマ区切り文字列 or 配列 or 空
+  var urls = [];
+  if (imageUrls) {
+    if (typeof imageUrls === 'string') {
+      urls = imageUrls.split(',').map(function(u) { return u.trim(); }).filter(function(u) { return u; });
     } else {
-      containerPayload.media_type = 'TEXT';
+      urls = imageUrls;
+    }
+  }
+
+  var apiBase = 'https://graph.threads.net/v1.0/' + config.userId;
+
+  try {
+    var containerId;
+
+    if (urls.length === 0) {
+      // テキストのみ
+      containerId = createThreadsContainer(apiBase, config.accessToken, {
+        text: body,
+        media_type: 'TEXT'
+      });
+    } else if (urls.length === 1) {
+      // 画像1枚
+      containerId = createThreadsContainer(apiBase, config.accessToken, {
+        text: body,
+        media_type: 'IMAGE',
+        image_url: urls[0]
+      });
+    } else {
+      // カルーセル（2〜4枚）
+      var childIds = [];
+      for (var i = 0; i < urls.length; i++) {
+        var childId = createThreadsContainer(apiBase, config.accessToken, {
+          media_type: 'IMAGE',
+          image_url: urls[i],
+          is_carousel_item: 'true'
+        });
+        childIds.push(childId);
+      }
+      containerId = createThreadsContainer(apiBase, config.accessToken, {
+        text: body,
+        media_type: 'CAROUSEL',
+        children: childIds.join(',')
+      });
     }
 
-    var containerRes = UrlFetchApp.fetch(
-      'https://graph.threads.net/v1.0/' + config.userId + '/threads',
-      {
-        method: 'post',
-        payload: containerPayload,
-        muteHttpExceptions: true
-      }
-    );
-
-    var containerData = JSON.parse(containerRes.getContentText());
-    if (!containerData.id) {
-      return { success: false, error: 'コンテナ作成失敗: ' + containerRes.getContentText() };
+    if (!containerId) {
+      return { success: false, error: 'コンテナ作成失敗' };
     }
 
-    // Step 2: 公開
-    var publishRes = UrlFetchApp.fetch(
-      'https://graph.threads.net/v1.0/' + config.userId + '/threads_publish',
-      {
-        method: 'post',
-        payload: {
-          creation_id: containerData.id,
-          access_token: config.accessToken
-        },
-        muteHttpExceptions: true
-      }
-    );
+    // 公開
+    var publishRes = UrlFetchApp.fetch(apiBase + '/threads_publish', {
+      method: 'post',
+      payload: {
+        creation_id: containerId,
+        access_token: config.accessToken
+      },
+      muteHttpExceptions: true
+    });
 
     var publishData = JSON.parse(publishRes.getContentText());
     if (publishData.id) {
@@ -230,6 +249,20 @@ function publishToThreads(body, imageUrl) {
   } catch (e) {
     return { success: false, error: e.message };
   }
+}
+
+function createThreadsContainer(apiBase, accessToken, params) {
+  params.access_token = accessToken;
+  var res = UrlFetchApp.fetch(apiBase + '/threads', {
+    method: 'post',
+    payload: params,
+    muteHttpExceptions: true
+  });
+  var data = JSON.parse(res.getContentText());
+  if (!data.id) {
+    throw new Error('コンテナ作成失敗: ' + res.getContentText());
+  }
+  return data.id;
 }
 
 // ====================

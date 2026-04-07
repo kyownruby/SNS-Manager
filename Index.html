@@ -130,25 +130,45 @@
     }
 
     /* 画像プレビュー */
-    .image-preview {
+    .image-preview-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
       margin-top: 8px;
-      display: none;
     }
 
-    .image-preview img {
-      max-width: 200px;
-      max-height: 200px;
+    .image-preview-item {
+      position: relative;
+      display: inline-block;
+    }
+
+    .image-preview-item img {
+      width: 100px;
+      height: 100px;
+      object-fit: cover;
       border-radius: 8px;
       border: 1px solid #ddd;
     }
 
-    .image-preview .remove-image {
-      display: inline-block;
-      margin-left: 8px;
-      color: #e33;
+    .image-preview-item .remove-image {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      width: 20px;
+      height: 20px;
+      background: #e33;
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      font-size: 0.7rem;
       cursor: pointer;
-      font-size: 0.85rem;
-      vertical-align: top;
+      line-height: 20px;
+      text-align: center;
+    }
+
+    .image-count {
+      font-size: 0.8rem;
+      color: #999;
       margin-top: 4px;
     }
 
@@ -343,19 +363,17 @@
       </div>
 
       <div class="form-group">
-        <label>画像（任意）</label>
+        <label>画像（任意・最大4枚）</label>
         <div id="dropZone" class="drop-zone"
              ondragover="handleDragOver(event)"
              ondragleave="handleDragLeave(event)"
              ondrop="handleDrop(event)"
              onclick="document.getElementById('imageFile').click()">
           ここに画像をドラッグ&ドロップ、またはクリックして選択
-          <input type="file" id="imageFile" accept="image/*" onchange="handleFileSelect()">
+          <input type="file" id="imageFile" accept="image/*" multiple onchange="handleFileSelect()">
         </div>
-        <div id="imagePreview" class="image-preview">
-          <img id="previewImg" src="">
-          <span class="remove-image" onclick="removeImage()">削除</span>
-        </div>
+        <div id="imagePreviewList" class="image-preview-list"></div>
+        <div id="imageCount" class="image-count"></div>
       </div>
 
       <div class="form-group">
@@ -420,7 +438,8 @@
   <script>
     var currentFilter = 'all';
     var allPosts = [];
-    var uploadedImageUrl = '';
+    var uploadedImageUrls = [];
+    var MAX_IMAGES = 4;
 
     // ====================
     // タブ切り替え
@@ -452,29 +471,57 @@
     }
 
     // ====================
-    // 画像：共通セット処理
+    // 画像：共通管理（最大4枚）
     // ====================
 
-    var pendingFile = null;
+    var pendingFiles = [];
 
-    function setImageFile(file) {
+    function addImageFile(file) {
       if (!file || !file.type.startsWith('image/')) return;
-      pendingFile = file;
-      var reader = new FileReader();
-      reader.onload = function(e) {
-        document.getElementById('previewImg').src = e.target.result;
-        document.getElementById('imagePreview').style.display = 'block';
-        document.getElementById('dropZone').style.display = 'none';
-      };
-      reader.readAsDataURL(file);
+      if (pendingFiles.length >= MAX_IMAGES) {
+        showStatus('画像は最大' + MAX_IMAGES + '枚までだよ！', 'error');
+        return;
+      }
+      pendingFiles.push(file);
+      renderImagePreviews();
     }
 
-    function removeImage() {
-      document.getElementById('imageFile').value = '';
-      document.getElementById('imagePreview').style.display = 'none';
-      document.getElementById('dropZone').style.display = '';
-      pendingFile = null;
-      uploadedImageUrl = '';
+    function removeImageAt(index) {
+      pendingFiles.splice(index, 1);
+      uploadedImageUrls = [];
+      renderImagePreviews();
+    }
+
+    function renderImagePreviews() {
+      var container = document.getElementById('imagePreviewList');
+      var countEl = document.getElementById('imageCount');
+      container.innerHTML = '';
+
+      if (pendingFiles.length === 0) {
+        document.getElementById('dropZone').style.display = '';
+        countEl.textContent = '';
+        return;
+      }
+
+      pendingFiles.forEach(function(file, idx) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          var item = document.createElement('div');
+          item.className = 'image-preview-item';
+          item.innerHTML = '<img src="' + e.target.result + '">'
+            + '<button class="remove-image" onclick="removeImageAt(' + idx + ')">×</button>';
+          container.appendChild(item);
+        };
+        reader.readAsDataURL(file);
+      });
+
+      countEl.textContent = pendingFiles.length + ' / ' + MAX_IMAGES + ' 枚';
+
+      if (pendingFiles.length >= MAX_IMAGES) {
+        document.getElementById('dropZone').style.display = 'none';
+      } else {
+        document.getElementById('dropZone').style.display = '';
+      }
     }
 
     // ====================
@@ -482,8 +529,11 @@
     // ====================
 
     function handleFileSelect() {
-      var file = document.getElementById('imageFile').files[0];
-      if (file) setImageFile(file);
+      var files = document.getElementById('imageFile').files;
+      for (var i = 0; i < files.length; i++) {
+        addImageFile(files[i]);
+      }
+      document.getElementById('imageFile').value = '';
     }
 
     // ====================
@@ -507,7 +557,9 @@
       e.stopPropagation();
       document.getElementById('dropZone').classList.remove('dragover');
       var files = e.dataTransfer.files;
-      if (files.length > 0) setImageFile(files[0]);
+      for (var i = 0; i < files.length; i++) {
+        addImageFile(files[i]);
+      }
     }
 
     // ====================
@@ -519,37 +571,47 @@
       for (var i = 0; i < items.length; i++) {
         if (items[i].type.startsWith('image/')) {
           e.preventDefault();
-          setImageFile(items[i].getAsFile());
+          addImageFile(items[i].getAsFile());
           return;
         }
       }
     });
 
     // ====================
-    // 画像アップロード
+    // 画像アップロード（複数対応）
     // ====================
 
-    function uploadImageFile() {
-      return new Promise(function(resolve, reject) {
-        if (!pendingFile) { resolve(''); return; }
-        if (uploadedImageUrl) { resolve(uploadedImageUrl); return; }
+    function uploadImageFiles() {
+      if (pendingFiles.length === 0) {
+        return Promise.resolve('');
+      }
+      if (uploadedImageUrls.length === pendingFiles.length) {
+        return Promise.resolve(uploadedImageUrls.join(','));
+      }
 
-        var reader = new FileReader();
-        reader.onload = function(e) {
-          var base64 = e.target.result.split(',')[1];
-          google.script.run
-            .withSuccessHandler(function(res) {
-              if (res.success) {
-                uploadedImageUrl = res.url;
-                resolve(res.url);
-              } else {
-                reject('画像アップロード失敗');
-              }
-            })
-            .withFailureHandler(function(err) { reject(err.message); })
-            .uploadImage(base64, pendingFile.name, pendingFile.type);
-        };
-        reader.readAsDataURL(pendingFile);
+      var promises = pendingFiles.map(function(file) {
+        return new Promise(function(resolve, reject) {
+          var reader = new FileReader();
+          reader.onload = function(e) {
+            var base64 = e.target.result.split(',')[1];
+            google.script.run
+              .withSuccessHandler(function(res) {
+                if (res.success) {
+                  resolve(res.url);
+                } else {
+                  reject('画像アップロード失敗');
+                }
+              })
+              .withFailureHandler(function(err) { reject(err.message); })
+              .uploadImage(base64, file.name, file.type);
+          };
+          reader.readAsDataURL(file);
+        });
+      });
+
+      return Promise.all(promises).then(function(urls) {
+        uploadedImageUrls = urls;
+        return urls.join(',');
       });
     }
 
@@ -572,10 +634,9 @@
       document.getElementById('postBody').value = '';
       document.getElementById('scheduledAt').value = '';
       document.getElementById('imageFile').value = '';
-      document.getElementById('imagePreview').style.display = 'none';
-      document.getElementById('dropZone').style.display = '';
-      pendingFile = null;
-      uploadedImageUrl = '';
+      pendingFiles = [];
+      uploadedImageUrls = [];
+      renderImagePreviews();
       updateCharCount();
     }
 
@@ -588,7 +649,7 @@
       if (!body) { showStatus('投稿内容を入力してください', 'error'); return; }
 
       setButtonsDisabled(true);
-      uploadImageFile()
+      uploadImageFiles()
         .then(function(imageUrl) {
           google.script.run
             .withSuccessHandler(function(res) {
@@ -619,7 +680,7 @@
       if (!scheduledAt) { showStatus('予約日時を入力してください', 'error'); return; }
 
       setButtonsDisabled(true);
-      uploadImageFile()
+      uploadImageFiles()
         .then(function(imageUrl) {
           google.script.run
             .withSuccessHandler(function(res) {
@@ -648,7 +709,7 @@
       if (!body) { showStatus('投稿内容を入力してください', 'error'); return; }
 
       setButtonsDisabled(true);
-      uploadImageFile()
+      uploadImageFiles()
         .then(function(imageUrl) {
           google.script.run
             .withSuccessHandler(function(res) {
@@ -722,7 +783,11 @@
         html += '</div>';
         html += '<div class="post-body">' + escapeHtml(p.body) + '</div>';
         if (p.image_url) {
-          html += '<img class="post-image-thumb" src="' + escapeHtml(p.image_url) + '">';
+          var thumbUrls = String(p.image_url).split(',');
+          thumbUrls.forEach(function(u) {
+            u = u.trim();
+            if (u) html += '<img class="post-image-thumb" src="' + escapeHtml(u) + '">';
+          });
         }
         if (p.status !== 'posted') {
           html += '<div class="post-actions">';
