@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      color: #333;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 24px;
+      font-size: 1.5rem;
+      color: #1a1a1a;
+    }
+
+    /* タブ */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 20px;
+      background: #e0e0e0;
+      border-radius: 8px;
+      padding: 4px;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 10px;
+      text-align: center;
+      border: none;
+      background: transparent;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: #666;
+      transition: all 0.2s;
+    }
+
+    .tab.active {
+      background: #fff;
+      color: #333;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    /* パネル */
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* フォーム */
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 500;
+      font-size: 0.9rem;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 1rem;
+      resize: vertical;
+      font-family: inherit;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: #0066ff;
+      box-shadow: 0 0 0 3px rgba(0,102,255,0.1);
+    }
+
+    input[type="datetime-local"],
+    input[type="file"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 0.95rem;
+    }
+
+    .char-count {
+      text-align: right;
+      font-size: 0.8rem;
+      color: #999;
+      margin-top: 4px;
+    }
+
+    .char-count.over { color: #e33; }
+
+    /* 画像プレビュー */
+    .image-preview {
+      margin-top: 8px;
+      display: none;
+    }
+
+    .image-preview img {
+      max-width: 200px;
+      max-height: 200px;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+    }
+
+    .image-preview .remove-image {
+      display: inline-block;
+      margin-left: 8px;
+      color: #e33;
+      cursor: pointer;
+      font-size: 0.85rem;
+      vertical-align: top;
+      margin-top: 4px;
+    }
+
+    /* ボタン */
+    .btn-group {
+      display: flex;
+      gap: 8px;
+      margin-top: 20px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn:hover:not(:disabled) { opacity: 0.85; }
+
+    .btn-post { background: #0066ff; color: #fff; }
+    .btn-schedule { background: #00b894; color: #fff; }
+    .btn-draft { background: #636e72; color: #fff; }
+    .btn-edit { background: #fdcb6e; color: #333; padding: 6px 12px; font-size: 0.8rem; flex: none; }
+    .btn-delete { background: #e17055; color: #fff; padding: 6px 12px; font-size: 0.8rem; flex: none; }
+    .btn-cancel { background: #b2bec3; color: #333; }
+
+    /* ステータスメッセージ */
+    .status-msg {
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      display: none;
+    }
+
+    .status-msg.success { display: block; background: #d4edda; color: #155724; }
+    .status-msg.error { display: block; background: #f8d7da; color: #721c24; }
+
+    /* 一覧テーブル */
+    .post-list { margin-top: 8px; }
+
+    .post-card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    .post-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .post-status {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .post-status.draft { background: #636e72; color: #fff; }
+    .post-status.scheduled { background: #00b894; color: #fff; }
+    .post-status.posted { background: #0066ff; color: #fff; }
+
+    .post-body {
+      font-size: 0.95rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin-bottom: 8px;
+    }
+
+    .post-meta {
+      font-size: 0.8rem;
+      color: #999;
+    }
+
+    .post-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .post-image-thumb {
+      max-width: 80px;
+      max-height: 80px;
+      border-radius: 4px;
+      margin-top: 8px;
+    }
+
+    .empty-msg {
+      text-align: center;
+      color: #999;
+      padding: 40px 0;
+    }
+
+    /* フィルター */
+    .filter-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .filter-btn {
+      padding: 6px 14px;
+      border: 1px solid #ddd;
+      background: #fff;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .filter-btn.active {
+      background: #333;
+      color: #fff;
+      border-color: #333;
+    }
+
+    /* 編集モーダル */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.active { display: flex; }
+
+    .modal {
+      background: #fff;
+      border-radius: 12px;
+      padding: 24px;
+      width: 90%;
+      max-width: 520px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .modal h2 {
+      margin-bottom: 16px;
+      font-size: 1.1rem;
+    }
+
+    /* ローディング */
+    .loading {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #fff;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>SNS Manager</h1>
+
+    <!-- タブ -->
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('compose')">新規作成</button>
+      <button class="tab" onclick="switchTab('list')">投稿一覧</button>
+    </div>
+
+    <!-- 新規作成パネル -->
+    <div id="panel-compose" class="panel active">
+      <div class="form-group">
+        <label>投稿内容</label>
+        <textarea id="postBody" placeholder="ここに投稿内容を入力..." oninput="updateCharCount()"></textarea>
+        <div id="charCount" class="char-count">0 / 500</div>
+      </div>
+
+      <div class="form-group">
+        <label>画像（任意）</label>
+        <input type="file" id="imageFile" accept="image/*" onchange="previewImage()">
+        <div id="imagePreview" class="image-preview">
+          <img id="previewImg" src="">
+          <span class="remove-image" onclick="removeImage()">削除</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>予約日時（予約投稿の場合）</label>
+        <input type="datetime-local" id="scheduledAt">
+      </div>
+
+      <div class="btn-group">
+        <button class="btn btn-post" onclick="handlePost()">投稿</button>
+        <button class="btn btn-schedule" onclick="handleSchedule()">予約</button>
+        <button class="btn btn-draft" onclick="handleDraft()">下書き</button>
+      </div>
+
+      <div id="statusMsg" class="status-msg"></div>
+    </div>
+
+    <!-- 一覧パネル -->
+    <div id="panel-list" class="panel">
+      <div class="filter-bar">
+        <button class="filter-btn active" onclick="setFilter('all')">すべて</button>
+        <button class="filter-btn" onclick="setFilter('draft')">下書き</button>
+        <button class="filter-btn" onclick="setFilter('scheduled')">予約</button>
+        <button class="filter-btn" onclick="setFilter('posted')">投稿済</button>
+      </div>
+      <div id="postList" class="post-list">
+        <div class="empty-msg">読み込み中...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 編集モーダル -->
+  <div id="editModal" class="modal-overlay" onclick="closeModalOutside(event)">
+    <div class="modal">
+      <h2>投稿を編集</h2>
+      <input type="hidden" id="editId">
+      <div class="form-group">
+        <label>投稿内容</label>
+        <textarea id="editBody"></textarea>
+      </div>
+      <div class="form-group">
+        <label>画像URL</label>
+        <input type="text" id="editImageUrl" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;">
+      </div>
+      <div class="form-group">
+        <label>予約日時</label>
+        <input type="datetime-local" id="editScheduledAt">
+      </div>
+      <div class="form-group">
+        <label>ステータス</label>
+        <select id="editStatus" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;">
+          <option value="draft">下書き</option>
+          <option value="scheduled">予約</option>
+        </select>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-post" onclick="saveEdit()">保存</button>
+        <button class="btn btn-cancel" onclick="closeModal()">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var currentFilter = 'all';
+    var allPosts = [];
+    var uploadedImageUrl = '';
+
+    // ====================
+    // タブ切り替え
+    // ====================
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+      document.querySelectorAll('.panel').forEach(function(p) { p.classList.remove('active'); });
+
+      if (tab === 'compose') {
+        document.querySelectorAll('.tab')[0].classList.add('active');
+        document.getElementById('panel-compose').classList.add('active');
+      } else {
+        document.querySelectorAll('.tab')[1].classList.add('active');
+        document.getElementById('panel-list').classList.add('active');
+        loadPosts();
+      }
+    }
+
+    // ====================
+    // 文字数カウント
+    // ====================
+
+    function updateCharCount() {
+      var len = document.getElementById('postBody').value.length;
+      var el = document.getElementById('charCount');
+      el.textContent = len + ' / 500';
+      el.className = len > 500 ? 'char-count over' : 'char-count';
+    }
+
+    // ====================
+    // 画像プレビュー
+    // ====================
+
+    function previewImage() {
+      var file = document.getElementById('imageFile').files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        document.getElementById('previewImg').src = e.target.result;
+        document.getElementById('imagePreview').style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function removeImage() {
+      document.getElementById('imageFile').value = '';
+      document.getElementById('imagePreview').style.display = 'none';
+      uploadedImageUrl = '';
+    }
+
+    // ====================
+    // 画像アップロード
+    // ====================
+
+    function uploadImageFile() {
+      return new Promise(function(resolve, reject) {
+        var file = document.getElementById('imageFile').files[0];
+        if (!file) { resolve(''); return; }
+        if (uploadedImageUrl) { resolve(uploadedImageUrl); return; }
+
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          var base64 = e.target.result.split(',')[1];
+          google.script.run
+            .withSuccessHandler(function(res) {
+              if (res.success) {
+                uploadedImageUrl = res.url;
+                resolve(res.url);
+              } else {
+                reject('画像アップロード失敗');
+              }
+            })
+            .withFailureHandler(function(err) { reject(err.message); })
+            .uploadImage(base64, file.name, file.type);
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // ====================
+    // ステータスメッセージ
+    // ====================
+
+    function showStatus(msg, type) {
+      var el = document.getElementById('statusMsg');
+      el.textContent = msg;
+      el.className = 'status-msg ' + type;
+      setTimeout(function() { el.className = 'status-msg'; }, 5000);
+    }
+
+    function setButtonsDisabled(disabled) {
+      document.querySelectorAll('#panel-compose .btn').forEach(function(b) { b.disabled = disabled; });
+    }
+
+    function resetForm() {
+      document.getElementById('postBody').value = '';
+      document.getElementById('scheduledAt').value = '';
+      document.getElementById('imageFile').value = '';
+      document.getElementById('imagePreview').style.display = 'none';
+      uploadedImageUrl = '';
+      updateCharCount();
+    }
+
+    // ====================
+    // 投稿アクション
+    // ====================
+
+    function handlePost() {
+      var body = document.getElementById('postBody').value.trim();
+      if (!body) { showStatus('投稿内容を入力してください', 'error'); return; }
+
+      setButtonsDisabled(true);
+      uploadImageFile()
+        .then(function(imageUrl) {
+          google.script.run
+            .withSuccessHandler(function(res) {
+              setButtonsDisabled(false);
+              if (res.success) {
+                showStatus('投稿しました！', 'success');
+                resetForm();
+              } else {
+                showStatus('エラー: ' + res.error, 'error');
+              }
+            })
+            .withFailureHandler(function(err) {
+              setButtonsDisabled(false);
+              showStatus('エラー: ' + err.message, 'error');
+            })
+            .postNow(body, imageUrl);
+        })
+        .catch(function(err) {
+          setButtonsDisabled(false);
+          showStatus('エラー: ' + err, 'error');
+        });
+    }
+
+    function handleSchedule() {
+      var body = document.getElementById('postBody').value.trim();
+      var scheduledAt = document.getElementById('scheduledAt').value;
+      if (!body) { showStatus('投稿内容を入力してください', 'error'); return; }
+      if (!scheduledAt) { showStatus('予約日時を入力してください', 'error'); return; }
+
+      setButtonsDisabled(true);
+      uploadImageFile()
+        .then(function(imageUrl) {
+          google.script.run
+            .withSuccessHandler(function(res) {
+              setButtonsDisabled(false);
+              if (res.success) {
+                showStatus('予約しました！', 'success');
+                resetForm();
+              } else {
+                showStatus('エラー: ' + res.error, 'error');
+              }
+            })
+            .withFailureHandler(function(err) {
+              setButtonsDisabled(false);
+              showStatus('エラー: ' + err.message, 'error');
+            })
+            .schedulePost(body, imageUrl, scheduledAt);
+        })
+        .catch(function(err) {
+          setButtonsDisabled(false);
+          showStatus('エラー: ' + err, 'error');
+        });
+    }
+
+    function handleDraft() {
+      var body = document.getElementById('postBody').value.trim();
+      if (!body) { showStatus('投稿内容を入力してください', 'error'); return; }
+
+      setButtonsDisabled(true);
+      uploadImageFile()
+        .then(function(imageUrl) {
+          google.script.run
+            .withSuccessHandler(function(res) {
+              setButtonsDisabled(false);
+              if (res.success) {
+                showStatus('下書きを保存しました！', 'success');
+                resetForm();
+              } else {
+                showStatus('エラー: ' + res.error, 'error');
+              }
+            })
+            .withFailureHandler(function(err) {
+              setButtonsDisabled(false);
+              showStatus('エラー: ' + err.message, 'error');
+            })
+            .saveDraft(body, imageUrl);
+        })
+        .catch(function(err) {
+          setButtonsDisabled(false);
+          showStatus('エラー: ' + err, 'error');
+        });
+    }
+
+    // ====================
+    // 一覧表示
+    // ====================
+
+    function loadPosts() {
+      google.script.run
+        .withSuccessHandler(function(posts) {
+          allPosts = posts;
+          renderPosts();
+        })
+        .withFailureHandler(function(err) {
+          document.getElementById('postList').innerHTML =
+            '<div class="empty-msg">読み込みに失敗しました</div>';
+        })
+        .getPosts();
+    }
+
+    function setFilter(filter) {
+      currentFilter = filter;
+      document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
+      event.target.classList.add('active');
+      renderPosts();
+    }
+
+    function renderPosts() {
+      var container = document.getElementById('postList');
+      var filtered = allPosts.filter(function(p) {
+        return currentFilter === 'all' || p.status === currentFilter;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div class="empty-msg">投稿がありません</div>';
+        return;
+      }
+
+      var html = '';
+      filtered.forEach(function(p) {
+        var statusLabel = { draft: '下書き', scheduled: '予約', posted: '投稿済' };
+        html += '<div class="post-card">';
+        html += '<div class="post-card-header">';
+        html += '<span class="post-status ' + p.status + '">' + (statusLabel[p.status] || p.status) + '</span>';
+        if (p.scheduled_at) {
+          html += '<span class="post-meta">予約: ' + p.scheduled_at + '</span>';
+        }
+        if (p.posted_at) {
+          html += '<span class="post-meta">投稿: ' + p.posted_at + '</span>';
+        }
+        html += '</div>';
+        html += '<div class="post-body">' + escapeHtml(p.body) + '</div>';
+        if (p.image_url) {
+          html += '<img class="post-image-thumb" src="' + escapeHtml(p.image_url) + '">';
+        }
+        if (p.status !== 'posted') {
+          html += '<div class="post-actions">';
+          html += '<button class="btn btn-edit" onclick=\'openEdit(' + JSON.stringify(JSON.stringify(p)) + ')\'>編集</button>';
+          html += '<button class="btn btn-delete" onclick="handleDelete(\'' + p.id + '\')">削除</button>';
+          html += '</div>';
+        }
+        html += '</div>';
+      });
+
+      container.innerHTML = html;
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // ====================
+    // 削除
+    // ====================
+
+    function handleDelete(id) {
+      if (!confirm('この投稿を削除しますか？')) return;
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (res.success) loadPosts();
+        })
+        .deletePost(id);
+    }
+
+    // ====================
+    // 編集モーダル
+    // ====================
+
+    function openEdit(postJson) {
+      var p = JSON.parse(postJson);
+      document.getElementById('editId').value = p.id;
+      document.getElementById('editBody').value = p.body;
+      document.getElementById('editImageUrl').value = p.image_url || '';
+      document.getElementById('editScheduledAt').value = p.scheduled_at || '';
+      document.getElementById('editStatus').value = p.status;
+      document.getElementById('editModal').classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('editModal').classList.remove('active');
+    }
+
+    function closeModalOutside(e) {
+      if (e.target === document.getElementById('editModal')) closeModal();
+    }
+
+    function saveEdit() {
+      var id = document.getElementById('editId').value;
+      var body = document.getElementById('editBody').value.trim();
+      var imageUrl = document.getElementById('editImageUrl').value.trim();
+      var scheduledAt = document.getElementById('editScheduledAt').value;
+      var status = document.getElementById('editStatus').value;
+
+      if (!body) { alert('投稿内容を入力してください'); return; }
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (res.success) {
+            closeModal();
+            loadPosts();
+          } else {
+            alert('エラー: ' + res.error);
+          }
+        })
+        .withFailureHandler(function(err) { alert('エラー: ' + err.message); })
+        .updatePost(id, body, imageUrl, scheduledAt, status);
+    }
+  </script>
+</body>
+</html>
