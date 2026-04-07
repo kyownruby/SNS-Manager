@@ -107,6 +107,28 @@
 
     .char-count.over { color: #e33; }
 
+    /* ドロップゾーン */
+    .drop-zone {
+      border: 2px dashed #ccc;
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+      color: #999;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .drop-zone.dragover {
+      border-color: #0066ff;
+      background: rgba(0,102,255,0.05);
+      color: #0066ff;
+    }
+
+    .drop-zone input[type="file"] {
+      display: none;
+    }
+
     /* 画像プレビュー */
     .image-preview {
       margin-top: 8px;
@@ -322,7 +344,14 @@
 
       <div class="form-group">
         <label>画像（任意）</label>
-        <input type="file" id="imageFile" accept="image/*" onchange="previewImage()">
+        <div id="dropZone" class="drop-zone"
+             ondragover="handleDragOver(event)"
+             ondragleave="handleDragLeave(event)"
+             ondrop="handleDrop(event)"
+             onclick="document.getElementById('imageFile').click()">
+          ここに画像をドラッグ&ドロップ、またはクリックして選択
+          <input type="file" id="imageFile" accept="image/*" onchange="handleFileSelect()">
+        </div>
         <div id="imagePreview" class="image-preview">
           <img id="previewImg" src="">
           <span class="remove-image" onclick="removeImage()">削除</span>
@@ -423,16 +452,19 @@
     }
 
     // ====================
-    // 画像プレビュー
+    // 画像：共通セット処理
     // ====================
 
-    function previewImage() {
-      var file = document.getElementById('imageFile').files[0];
-      if (!file) return;
+    var pendingFile = null;
+
+    function setImageFile(file) {
+      if (!file || !file.type.startsWith('image/')) return;
+      pendingFile = file;
       var reader = new FileReader();
       reader.onload = function(e) {
         document.getElementById('previewImg').src = e.target.result;
         document.getElementById('imagePreview').style.display = 'block';
+        document.getElementById('dropZone').style.display = 'none';
       };
       reader.readAsDataURL(file);
     }
@@ -440,8 +472,58 @@
     function removeImage() {
       document.getElementById('imageFile').value = '';
       document.getElementById('imagePreview').style.display = 'none';
+      document.getElementById('dropZone').style.display = '';
+      pendingFile = null;
       uploadedImageUrl = '';
     }
+
+    // ====================
+    // 画像：ファイル選択
+    // ====================
+
+    function handleFileSelect() {
+      var file = document.getElementById('imageFile').files[0];
+      if (file) setImageFile(file);
+    }
+
+    // ====================
+    // 画像：ドラッグ&ドロップ
+    // ====================
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      document.getElementById('dropZone').classList.add('dragover');
+    }
+
+    function handleDragLeave(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      document.getElementById('dropZone').classList.remove('dragover');
+    }
+
+    function handleDrop(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      document.getElementById('dropZone').classList.remove('dragover');
+      var files = e.dataTransfer.files;
+      if (files.length > 0) setImageFile(files[0]);
+    }
+
+    // ====================
+    // 画像：Ctrl+V ペースト
+    // ====================
+
+    document.getElementById('postBody').addEventListener('paste', function(e) {
+      var items = (e.clipboardData || e.originalEvent.clipboardData).items;
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          e.preventDefault();
+          setImageFile(items[i].getAsFile());
+          return;
+        }
+      }
+    });
 
     // ====================
     // 画像アップロード
@@ -449,8 +531,7 @@
 
     function uploadImageFile() {
       return new Promise(function(resolve, reject) {
-        var file = document.getElementById('imageFile').files[0];
-        if (!file) { resolve(''); return; }
+        if (!pendingFile) { resolve(''); return; }
         if (uploadedImageUrl) { resolve(uploadedImageUrl); return; }
 
         var reader = new FileReader();
@@ -466,9 +547,9 @@
               }
             })
             .withFailureHandler(function(err) { reject(err.message); })
-            .uploadImage(base64, file.name, file.type);
+            .uploadImage(base64, pendingFile.name, pendingFile.type);
         };
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(pendingFile);
       });
     }
 
@@ -492,6 +573,8 @@
       document.getElementById('scheduledAt').value = '';
       document.getElementById('imageFile').value = '';
       document.getElementById('imagePreview').style.display = 'none';
+      document.getElementById('dropZone').style.display = '';
+      pendingFile = null;
       uploadedImageUrl = '';
       updateCharCount();
     }
