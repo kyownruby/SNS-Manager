@@ -266,6 +266,30 @@ function createThreadsContainer(apiBase, accessToken, params) {
 }
 
 // ====================
+// 既存投稿を即時公開
+// ====================
+
+function publishExistingPost(id, body, imageUrls) {
+  var result = publishToThreads(body, imageUrls);
+  if (result.success) {
+    var sheet = getSheet();
+    var data = sheet.getDataRange().getValues();
+    for (var i = 1; i < data.length; i++) {
+      if (data[i][0] === id) {
+        var row = i + 1;
+        sheet.getRange(row, 2).setValue('posted');
+        sheet.getRange(row, 3).setValue(body);
+        sheet.getRange(row, 4).setValue(imageUrls || '');
+        var now = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss");
+        sheet.getRange(row, 6).setValue(now);
+        break;
+      }
+    }
+  }
+  return result;
+}
+
+// ====================
 // 予約投稿トリガー
 // ====================
 
