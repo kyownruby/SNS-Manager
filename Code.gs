@@ -13,7 +13,11 @@ function doGet() {
 // ====================
 
 function getSheet() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ssId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+  if (!ssId) {
+    throw new Error('スクリプトプロパティに SPREADSHEET_ID を設定してください');
+  }
+  var ss = SpreadsheetApp.openById(ssId);
   var sheet = ss.getSheetByName('posts');
   if (!sheet) {
     sheet = ss.insertSheet('posts');
