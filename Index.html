@@ -414,8 +414,17 @@
         <textarea id="editBody"></textarea>
       </div>
       <div class="form-group">
-        <label>画像URL</label>
-        <input type="text" id="editImageUrl" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;">
+        <label>画像（任意・最大4枚）</label>
+        <div id="editDropZone" class="drop-zone"
+             ondragover="handleEditDragOver(event)"
+             ondragleave="handleEditDragLeave(event)"
+             ondrop="handleEditDrop(event)"
+             onclick="document.getElementById('editImageFile').click()">
+          ここに画像をドラッグ&ドロップ、またはクリックして選択
+          <input type="file" id="editImageFile" accept="image/*" multiple onchange="handleEditFileSelect()" style="display:none;">
+        </div>
+        <div id="editImagePreviewList" class="image-preview-list"></div>
+        <div id="editImageCount" class="image-count"></div>
       </div>
       <div class="form-group">
         <label>予約日時</label>
@@ -429,7 +438,8 @@
         </select>
       </div>
       <div class="btn-group">
-        <button class="btn btn-post" onclick="saveEdit()">保存</button>
+        <button class="btn btn-post" onclick="handleEditPublish()">投稿</button>
+        <button class="btn btn-draft" onclick="saveEdit()">保存</button>
         <button class="btn btn-cancel" onclick="closeModal()">キャンセル</button>
       </div>
     </div>
@@ -824,16 +834,167 @@
     }
 
     // ====================
-    // 編集モーダル
+    // 編集モーダル：画像管理
+    // ====================
+
+    var editExistingUrls = [];
+    var editPendingFiles = [];
+    var editUploadedUrls = [];
+
+    function addEditImageFile(file) {
+      if (!file || !file.type.startsWith('image/')) return;
+      var total = editExistingUrls.length + editPendingFiles.length;
+      if (total >= MAX_IMAGES) {
+        alert('画像は最大' + MAX_IMAGES + '枚までです');
+        return;
+      }
+      editPendingFiles.push(file);
+      editUploadedUrls = [];
+      renderEditImagePreviews();
+    }
+
+    function removeEditExistingAt(index) {
+      editExistingUrls.splice(index, 1);
+      renderEditImagePreviews();
+    }
+
+    function removeEditPendingAt(index) {
+      editPendingFiles.splice(index, 1);
+      editUploadedUrls = [];
+      renderEditImagePreviews();
+    }
+
+    function renderEditImagePreviews() {
+      var container = document.getElementById('editImagePreviewList');
+      var countEl = document.getElementById('editImageCount');
+      container.innerHTML = '';
+
+      var total = editExistingUrls.length + editPendingFiles.length;
+
+      // 既存URL（アップロード済み）のプレビュー
+      editExistingUrls.forEach(function(url, idx) {
+        var item = document.createElement('div');
+        item.className = 'image-preview-item';
+        item.innerHTML = '<img src="' + url + '">'
+          + '<button class="remove-image" onclick="removeEditExistingAt(' + idx + ')">×</button>';
+        container.appendChild(item);
+      });
+
+      // 新規ファイルのプレビュー
+      editPendingFiles.forEach(function(file, idx) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          var item = document.createElement('div');
+          item.className = 'image-preview-item';
+          item.innerHTML = '<img src="' + e.target.result + '">'
+            + '<button class="remove-image" onclick="removeEditPendingAt(' + idx + ')">×</button>';
+          container.appendChild(item);
+        };
+        reader.readAsDataURL(file);
+      });
+
+      countEl.textContent = total > 0 ? total + ' / ' + MAX_IMAGES + ' 枚' : '';
+
+      if (total >= MAX_IMAGES) {
+        document.getElementById('editDropZone').style.display = 'none';
+      } else {
+        document.getElementById('editDropZone').style.display = '';
+      }
+    }
+
+    function handleEditFileSelect() {
+      var files = document.getElementById('editImageFile').files;
+      for (var i = 0; i < files.length; i++) {
+        addEditImageFile(files[i]);
+      }
+      document.getElementById('editImageFile').value = '';
+    }
+
+    function handleEditDragOver(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      document.getElementById('editDropZone').classList.add('dragover');
+    }
+
+    function handleEditDragLeave(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      document.getElementById('editDropZone').classList.remove('dragover');
+    }
+
+    function handleEditDrop(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      document.getElementById('editDropZone').classList.remove('dragover');
+      var files = e.dataTransfer.files;
+      for (var i = 0; i < files.length; i++) {
+        addEditImageFile(files[i]);
+      }
+    }
+
+    // 編集モーダルのtextareaでCtrl+Vペースト
+    document.getElementById('editBody').addEventListener('paste', function(e) {
+      var items = (e.clipboardData || e.originalEvent.clipboardData).items;
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          e.preventDefault();
+          addEditImageFile(items[i].getAsFile());
+          return;
+        }
+      }
+    });
+
+    function uploadEditImageFiles() {
+      if (editPendingFiles.length === 0) {
+        return Promise.resolve(editExistingUrls.join(','));
+      }
+      if (editUploadedUrls.length === editPendingFiles.length) {
+        return Promise.resolve(editExistingUrls.concat(editUploadedUrls).join(','));
+      }
+
+      var promises = editPendingFiles.map(function(file) {
+        return new Promise(function(resolve, reject) {
+          var reader = new FileReader();
+          reader.onload = function(e) {
+            var base64 = e.target.result.split(',')[1];
+            google.script.run
+              .withSuccessHandler(function(res) {
+                if (res.success) { resolve(res.url); }
+                else { reject('画像アップロード失敗'); }
+              })
+              .withFailureHandler(function(err) { reject(err.message); })
+              .uploadImage(base64, file.name, file.type);
+          };
+          reader.readAsDataURL(file);
+        });
+      });
+
+      return Promise.all(promises).then(function(urls) {
+        editUploadedUrls = urls;
+        return editExistingUrls.concat(urls).join(',');
+      });
+    }
+
+    // ====================
+    // 編集モーダル：開閉・保存・投稿
     // ====================
 
     function openEdit(postJson) {
       var p = JSON.parse(postJson);
       document.getElementById('editId').value = p.id;
       document.getElementById('editBody').value = p.body;
-      document.getElementById('editImageUrl').value = p.image_url || '';
       document.getElementById('editScheduledAt').value = p.scheduled_at || '';
       document.getElementById('editStatus').value = p.status;
+
+      // 既存画像URLをパース
+      editExistingUrls = [];
+      editPendingFiles = [];
+      editUploadedUrls = [];
+      if (p.image_url) {
+        editExistingUrls = String(p.image_url).split(',').map(function(u) { return u.trim(); }).filter(function(u) { return u; });
+      }
+      renderEditImagePreviews();
+
       document.getElementById('editModal').classList.add('active');
     }
 
@@ -845,26 +1006,73 @@
       if (e.target === document.getElementById('editModal')) closeModal();
     }
 
+    function setEditButtonsDisabled(disabled) {
+      document.querySelectorAll('#editModal .btn').forEach(function(b) { b.disabled = disabled; });
+    }
+
     function saveEdit() {
       var id = document.getElementById('editId').value;
       var body = document.getElementById('editBody').value.trim();
-      var imageUrl = document.getElementById('editImageUrl').value.trim();
       var scheduledAt = document.getElementById('editScheduledAt').value;
       var status = document.getElementById('editStatus').value;
 
       if (!body) { alert('投稿内容を入力してください'); return; }
 
-      google.script.run
-        .withSuccessHandler(function(res) {
-          if (res.success) {
-            closeModal();
-            loadPosts();
-          } else {
-            alert('エラー: ' + res.error);
-          }
+      setEditButtonsDisabled(true);
+      uploadEditImageFiles()
+        .then(function(imageUrl) {
+          google.script.run
+            .withSuccessHandler(function(res) {
+              setEditButtonsDisabled(false);
+              if (res.success) {
+                closeModal();
+                loadPosts();
+              } else {
+                alert('エラー: ' + res.error);
+              }
+            })
+            .withFailureHandler(function(err) {
+              setEditButtonsDisabled(false);
+              alert('エラー: ' + err.message);
+            })
+            .updatePost(id, body, imageUrl, scheduledAt, status);
         })
-        .withFailureHandler(function(err) { alert('エラー: ' + err.message); })
-        .updatePost(id, body, imageUrl, scheduledAt, status);
+        .catch(function(err) {
+          setEditButtonsDisabled(false);
+          alert('エラー: ' + err);
+        });
+    }
+
+    function handleEditPublish() {
+      var id = document.getElementById('editId').value;
+      var body = document.getElementById('editBody').value.trim();
+
+      if (!body) { alert('投稿内容を入力してください'); return; }
+      if (!confirm('この内容で投稿しますか？')) return;
+
+      setEditButtonsDisabled(true);
+      uploadEditImageFiles()
+        .then(function(imageUrl) {
+          google.script.run
+            .withSuccessHandler(function(res) {
+              setEditButtonsDisabled(false);
+              if (res.success) {
+                closeModal();
+                loadPosts();
+              } else {
+                alert('エラー: ' + res.error);
+              }
+            })
+            .withFailureHandler(function(err) {
+              setEditButtonsDisabled(false);
+              alert('エラー: ' + err.message);
+            })
+            .publishExistingPost(id, body, imageUrl);
+        })
+        .catch(function(err) {
+          setEditButtonsDisabled(false);
+          alert('エラー: ' + err);
+        });
     }
   </script>
 </body>
