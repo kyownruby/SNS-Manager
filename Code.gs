@@ -219,6 +219,10 @@ function publishToThreads(body, imageUrls) {
         });
         childIds.push(childId);
       }
+      // 全子コンテナが FINISHED になるまで待機
+      for (var j = 0; j < childIds.length; j++) {
+        waitForContainerReady(childIds[j], config.accessToken);
+      }
       containerId = createThreadsContainer(apiBase, config.accessToken, {
         text: body,
         media_type: 'CAROUSEL',
@@ -249,6 +253,26 @@ function publishToThreads(body, imageUrls) {
   } catch (e) {
     return { success: false, error: e.message };
   }
+}
+
+function waitForContainerReady(containerId, accessToken) {
+  var maxAttempts = 15;
+  for (var i = 0; i < maxAttempts; i++) {
+    var res = UrlFetchApp.fetch(
+      'https://graph.threads.net/v1.0/' + containerId + '?fields=status&access_token=' + accessToken,
+      { muteHttpExceptions: true }
+    );
+    var data = JSON.parse(res.getContentText());
+
+    if (data.status === 'FINISHED') {
+      return;
+    }
+    if (data.status === 'ERROR' || data.status === 'EXPIRED') {
+      throw new Error('コンテナ準備失敗 (ID: ' + containerId + ', status: ' + data.status + ')');
+    }
+    Utilities.sleep(2000);
+  }
+  throw new Error('コンテナ準備タイムアウト (ID: ' + containerId + ')');
 }
 
 function createThreadsContainer(apiBase, accessToken, params) {
