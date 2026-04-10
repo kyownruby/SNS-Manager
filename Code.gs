@@ -332,3 +332,84 @@ function ensureTrigger() {
     .everyMinutes(1)
     .create();
 }
+
+// ====================
+// アクセストークン管理
+// ====================
+
+function exchangeForLongLivedToken() {
+  var props = PropertiesService.getScriptProperties();
+  var shortToken = props.getProperty('THREADS_ACCESS_TOKEN');
+  var appSecret = props.getProperty('THREADS_APP_SECRET');
+
+  if (!shortToken || !appSecret) {
+    return { success: false, error: 'THREADS_ACCESS_TOKEN または THREADS_APP_SECRET が未設定です' };
+  }
+
+  try {
+    var res = UrlFetchApp.fetch(
+      'https://graph.threads.net/access_token'
+      + '?grant_type=th_exchange_token'
+      + '&client_secret=' + appSecret
+      + '&access_token=' + shortToken,
+      { muteHttpExceptions: true }
+    );
+
+    var data = JSON.parse(res.getContentText());
+    if (data.access_token) {
+      props.setProperty('THREADS_ACCESS_TOKEN', data.access_token);
+      Logger.log('長期トークンに交換しました（有効期限: ' + data.expires_in + '秒）');
+      ensureTokenRefreshTrigger();
+      return { success: true, expires_in: data.expires_in };
+    } else {
+      return { success: false, error: 'トークン交換失敗: ' + res.getContentText() };
+    }
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+function refreshLongLivedToken() {
+  var props = PropertiesService.getScriptProperties();
+  var currentToken = props.getProperty('THREADS_ACCESS_TOKEN');
+
+  if (!currentToken) {
+    Logger.log('THREADS_ACCESS_TOKEN が未設定です');
+    return { success: false, error: 'THREADS_ACCESS_TOKEN が未設定です' };
+  }
+
+  try {
+    var res = UrlFetchApp.fetch(
+      'https://graph.threads.net/refresh_access_token'
+      + '?grant_type=th_refresh_token'
+      + '&access_token=' + currentToken,
+      { muteHttpExceptions: true }
+    );
+
+    var data = JSON.parse(res.getContentText());
+    if (data.access_token) {
+      props.setProperty('THREADS_ACCESS_TOKEN', data.access_token);
+      Logger.log('トークンを更新しました（有効期限: ' + data.expires_in + '秒）');
+      return { success: true, expires_in: data.expires_in };
+    } else {
+      Logger.log('トークン更新失敗: ' + res.getContentText());
+      return { success: false, error: 'トークン更新失敗: ' + res.getContentText() };
+    }
+  } catch (e) {
+    Logger.log('トークン更新エラー: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+function ensureTokenRefreshTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'refreshLongLivedToken') {
+      return;
+    }
+  }
+  ScriptApp.newTrigger('refreshLongLivedToken')
+    .timeBased()
+    .everyDays(30)
+    .create();
+}
