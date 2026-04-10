@@ -514,14 +514,15 @@
       }
 
       pendingFiles.forEach(function(file, idx) {
+        var item = document.createElement('div');
+        item.className = 'image-preview-item';
+        item.innerHTML = '<img src="">'
+          + '<button class="remove-image" onclick="removeImageAt(' + idx + ')">×</button>';
+        container.appendChild(item);
         var reader = new FileReader();
-        reader.onload = function(e) {
-          var item = document.createElement('div');
-          item.className = 'image-preview-item';
-          item.innerHTML = '<img src="' + e.target.result + '">'
-            + '<button class="remove-image" onclick="removeImageAt(' + idx + ')">×</button>';
-          container.appendChild(item);
-        };
+        reader.onload = (function(el) {
+          return function(e) { el.querySelector('img').src = e.target.result; };
+        })(item);
         reader.readAsDataURL(file);
       });
 
@@ -882,14 +883,15 @@
 
       // 新規ファイルのプレビュー
       editPendingFiles.forEach(function(file, idx) {
+        var item = document.createElement('div');
+        item.className = 'image-preview-item';
+        item.innerHTML = '<img src="">'
+          + '<button class="remove-image" onclick="removeEditPendingAt(' + idx + ')">×</button>';
+        container.appendChild(item);
         var reader = new FileReader();
-        reader.onload = function(e) {
-          var item = document.createElement('div');
-          item.className = 'image-preview-item';
-          item.innerHTML = '<img src="' + e.target.result + '">'
-            + '<button class="remove-image" onclick="removeEditPendingAt(' + idx + ')">×</button>';
-          container.appendChild(item);
-        };
+        reader.onload = (function(el) {
+          return function(e) { el.querySelector('img').src = e.target.result; };
+        })(item);
         reader.readAsDataURL(file);
       });
 
