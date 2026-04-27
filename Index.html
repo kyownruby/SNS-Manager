@@ -300,6 +300,45 @@
       border-color: #333;
     }
 
+    /* 画像ライトボックス */
+    .lightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .lightbox.active { display: flex; }
+
+    .lightbox img {
+      max-width: 90vw;
+      max-height: 90vh;
+      border-radius: 8px;
+      object-fit: contain;
+    }
+
+    .lightbox .close-btn {
+      position: absolute;
+      top: 16px;
+      right: 20px;
+      color: #fff;
+      font-size: 2rem;
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+
+    .post-image-thumb {
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .post-image-thumb:hover { opacity: 0.8; }
+
     /* 編集モーダル */
     .modal-overlay {
       display: none;
@@ -402,6 +441,12 @@
         <div class="empty-msg">読み込み中...</div>
       </div>
     </div>
+  </div>
+
+  <!-- 画像ライトボックス -->
+  <div id="lightbox" class="lightbox" onclick="closeLightbox()">
+    <button class="close-btn" onclick="closeLightbox()">×</button>
+    <img id="lightboxImg" src="">
   </div>
 
   <!-- 編集モーダル -->
@@ -797,7 +842,7 @@
           var thumbUrls = String(p.image_url).split(',');
           thumbUrls.forEach(function(u) {
             u = u.trim();
-            if (u) html += '<img class="post-image-thumb" src="' + escapeHtml(u) + '">';
+            if (u) html += '<img class="post-image-thumb" src="' + escapeHtml(u) + '" onclick="openLightbox(\'' + escapeHtml(u) + '\')">';
           });
         }
         if (p.status !== 'posted') {
@@ -819,6 +864,20 @@
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+    }
+
+    // ====================
+    // 画像ライトボックス
+    // ====================
+
+    function openLightbox(url) {
+      document.getElementById('lightboxImg').src = url;
+      document.getElementById('lightbox').classList.add('active');
+    }
+
+    function closeLightbox() {
+      document.getElementById('lightbox').classList.remove('active');
+      document.getElementById('lightboxImg').src = '';
     }
 
     // ====================
