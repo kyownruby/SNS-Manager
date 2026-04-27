@@ -53,7 +53,7 @@ function getPosts() {
     row._row = i + 1;
     posts.push(row);
   }
-  return posts;
+  return posts.reverse();
 }
 
 // ====================
