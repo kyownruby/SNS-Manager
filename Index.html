@@ -245,6 +245,46 @@
     .post-status.draft { background: #636e72; color: #fff; }
     .post-status.scheduled { background: #00b894; color: #fff; }
     .post-status.posted { background: #0066ff; color: #fff; }
+    .post-status.failed { background: #d63031; color: #fff; }
+
+    /* 投稿先セレクタ */
+    .platform-select {
+      display: flex;
+      gap: 8px;
+    }
+
+    .platform-select label {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin: 0;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .platform-select label.sel-threads { border-color: #1a1a1a; background: #1a1a1a; color: #fff; }
+    .platform-select label.sel-x { border-color: #000; background: #000; color: #fff; }
+
+    .platform-select input { margin: 0; }
+
+    /* 投稿先バッジ（一覧） */
+    .post-platform {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-left: 6px;
+    }
+
+    .post-platform.threads { background: #1a1a1a; color: #fff; }
+    .post-platform.x { background: #000; color: #fff; }
 
     .post-body {
       font-size: 0.95rem;
@@ -396,6 +436,14 @@
     <!-- 新規作成パネル -->
     <div id="panel-compose" class="panel active">
       <div class="form-group">
+        <label>投稿先</label>
+        <div class="platform-select" id="platformSelect">
+          <label class="sel-threads"><input type="radio" name="platform" value="threads" checked onchange="onPlatformChange()"> Threads</label>
+          <label><input type="radio" name="platform" value="x" onchange="onPlatformChange()"> X</label>
+        </div>
+      </div>
+
+      <div class="form-group">
         <label>投稿内容</label>
         <textarea id="postBody" placeholder="ここに投稿内容を入力..." oninput="updateCharCount()"></textarea>
         <div id="charCount" class="char-count">0 / 500</div>
@@ -436,6 +484,12 @@
         <button class="filter-btn" onclick="setFilter('draft')">下書き</button>
         <button class="filter-btn" onclick="setFilter('scheduled')">予約</button>
         <button class="filter-btn" onclick="setFilter('posted')">投稿済</button>
+        <button class="filter-btn" onclick="setFilter('failed')">失敗</button>
+      </div>
+      <div class="filter-bar">
+        <button class="filter-btn active" onclick="setPlatformFilter('all')">全SNS</button>
+        <button class="filter-btn" onclick="setPlatformFilter('threads')">Threads</button>
+        <button class="filter-btn" onclick="setPlatformFilter('x')">X</button>
       </div>
       <div id="postList" class="post-list">
         <div class="empty-msg">読み込み中...</div>
@@ -454,6 +508,13 @@
     <div class="modal">
       <h2>投稿を編集</h2>
       <input type="hidden" id="editId">
+      <div class="form-group">
+        <label>投稿先</label>
+        <div class="platform-select" id="editPlatformSelect">
+          <label class="sel-threads"><input type="radio" name="editPlatform" value="threads" checked onchange="onEditPlatformChange()"> Threads</label>
+          <label><input type="radio" name="editPlatform" value="x" onchange="onEditPlatformChange()"> X</label>
+        </div>
+      </div>
       <div class="form-group">
         <label>投稿内容</label>
         <textarea id="editBody"></textarea>
@@ -480,6 +541,7 @@
         <select id="editStatus" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;">
           <option value="draft">下書き</option>
           <option value="scheduled">予約</option>
+          <option value="failed">失敗</option>
         </select>
       </div>
       <div class="btn-group">
@@ -492,9 +554,12 @@
 
   <script>
     var currentFilter = 'all';
+    var currentPlatformFilter = 'all';
     var allPosts = [];
     var uploadedImageUrls = [];
     var MAX_IMAGES = 4;
+    var PLATFORM_LIMIT = { threads: 500, x: 280 };
+    var PLATFORM_LABEL = { threads: 'Threads', x: 'X' };
 
     // ====================
     // タブ切り替え
@@ -518,11 +583,29 @@
     // 文字数カウント
     // ====================
 
+    function getSelectedPlatform() {
+      var radios = document.getElementsByName('platform');
+      for (var i = 0; i < radios.length; i++) {
+        if (radios[i].checked) return radios[i].value;
+      }
+      return 'threads';
+    }
+
+    // 投稿先トグルの見た目を更新し、文字数カウントも切り替える。
+    function onPlatformChange() {
+      var platform = getSelectedPlatform();
+      var labels = document.querySelectorAll('#platformSelect label');
+      labels[0].className = platform === 'threads' ? 'sel-threads' : '';
+      labels[1].className = platform === 'x' ? 'sel-x' : '';
+      updateCharCount();
+    }
+
     function updateCharCount() {
+      var limit = PLATFORM_LIMIT[getSelectedPlatform()] || 500;
       var len = document.getElementById('postBody').value.length;
       var el = document.getElementById('charCount');
-      el.textContent = len + ' / 500';
-      el.className = len > 500 ? 'char-count over' : 'char-count';
+      el.textContent = len + ' / ' + limit;
+      el.className = len > limit ? 'char-count over' : 'char-count';
     }
 
     // ====================
@@ -721,7 +804,7 @@
               setButtonsDisabled(false);
               showStatus('エラー: ' + err.message, 'error');
             })
-            .postNow(body, imageUrl);
+            .postNow(body, imageUrl, getSelectedPlatform());
         })
         .catch(function(err) {
           setButtonsDisabled(false);
@@ -752,7 +835,7 @@
               setButtonsDisabled(false);
               showStatus('エラー: ' + err.message, 'error');
             })
-            .schedulePost(body, imageUrl, scheduledAt);
+            .schedulePost(body, imageUrl, scheduledAt, getSelectedPlatform());
         })
         .catch(function(err) {
           setButtonsDisabled(false);
@@ -781,7 +864,7 @@
               setButtonsDisabled(false);
               showStatus('エラー: ' + err.message, 'error');
             })
-            .saveDraft(body, imageUrl);
+            .saveDraft(body, imageUrl, getSelectedPlatform());
         })
         .catch(function(err) {
           setButtonsDisabled(false);
@@ -808,15 +891,30 @@
 
     function setFilter(filter) {
       currentFilter = filter;
-      document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
-      event.target.classList.add('active');
+      updateFilterButtons(event.target);
       renderPosts();
+    }
+
+    function setPlatformFilter(platform) {
+      currentPlatformFilter = platform;
+      updateFilterButtons(event.target);
+      renderPosts();
+    }
+
+    // 同じフィルターバー内だけで active を切り替える（ステータス/投稿先を独立管理）。
+    function updateFilterButtons(clicked) {
+      var bar = clicked.parentNode;
+      bar.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
+      clicked.classList.add('active');
     }
 
     function renderPosts() {
       var container = document.getElementById('postList');
       var filtered = allPosts.filter(function(p) {
-        return currentFilter === 'all' || p.status === currentFilter;
+        var statusOk = currentFilter === 'all' || p.status === currentFilter;
+        var platform = p.platform || 'threads';
+        var platformOk = currentPlatformFilter === 'all' || platform === currentPlatformFilter;
+        return statusOk && platformOk;
       });
 
       if (filtered.length === 0) {
@@ -826,10 +924,14 @@
 
       var html = '';
       filtered.forEach(function(p) {
-        var statusLabel = { draft: '下書き', scheduled: '予約', posted: '投稿済' };
+        var statusLabel = { draft: '下書き', scheduled: '予約', posted: '投稿済', failed: '失敗' };
+        var platform = p.platform || 'threads';
         html += '<div class="post-card">';
         html += '<div class="post-card-header">';
+        html += '<span>';
         html += '<span class="post-status ' + p.status + '">' + (statusLabel[p.status] || p.status) + '</span>';
+        html += '<span class="post-platform ' + platform + '">' + (PLATFORM_LABEL[platform] || platform) + '</span>';
+        html += '</span>';
         if (p.scheduled_at) {
           html += '<span class="post-meta">予約: ' + p.scheduled_at + '</span>';
         }
@@ -838,6 +940,9 @@
         }
         html += '</div>';
         html += '<div class="post-body">' + escapeHtml(p.body) + '</div>';
+        if (p.status === 'failed' && p.error_message) {
+          html += '<div class="post-meta" style="color:#d63031;">エラー: ' + escapeHtml(p.error_message) + '</div>';
+        }
         if (p.image_url) {
           var thumbUrls = String(p.image_url).split(',');
           thumbUrls.forEach(function(u) {
@@ -1040,12 +1145,36 @@
     // 編集モーダル：開閉・保存・投稿
     // ====================
 
+    function getEditPlatform() {
+      var radios = document.getElementsByName('editPlatform');
+      for (var i = 0; i < radios.length; i++) {
+        if (radios[i].checked) return radios[i].value;
+      }
+      return 'threads';
+    }
+
+    function setEditPlatform(platform) {
+      var radios = document.getElementsByName('editPlatform');
+      for (var i = 0; i < radios.length; i++) {
+        radios[i].checked = (radios[i].value === platform);
+      }
+      onEditPlatformChange();
+    }
+
+    function onEditPlatformChange() {
+      var platform = getEditPlatform();
+      var labels = document.querySelectorAll('#editPlatformSelect label');
+      labels[0].className = platform === 'threads' ? 'sel-threads' : '';
+      labels[1].className = platform === 'x' ? 'sel-x' : '';
+    }
+
     function openEdit(postJson) {
       var p = JSON.parse(postJson);
       document.getElementById('editId').value = p.id;
       document.getElementById('editBody').value = p.body;
       document.getElementById('editScheduledAt').value = p.scheduled_at || '';
       document.getElementById('editStatus').value = p.status;
+      setEditPlatform(p.platform || 'threads');
 
       // 既存画像URLをパース
       editExistingUrls = [];
@@ -1096,7 +1225,7 @@
               setEditButtonsDisabled(false);
               alert('エラー: ' + err.message);
             })
-            .updatePost(id, body, imageUrl, scheduledAt, status);
+            .updatePost(id, body, imageUrl, scheduledAt, status, getEditPlatform());
         })
         .catch(function(err) {
           setEditButtonsDisabled(false);
@@ -1128,7 +1257,7 @@
               setEditButtonsDisabled(false);
               alert('エラー: ' + err.message);
             })
-            .publishExistingPost(id, body, imageUrl);
+            .publishExistingPost(id, body, imageUrl, getEditPlatform());
         })
         .catch(function(err) {
           setEditButtonsDisabled(false);

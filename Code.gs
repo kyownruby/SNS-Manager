@@ -82,10 +82,10 @@ function getPosts() {
 // 下書き保存
 // ====================
 
-function saveDraft(body, imageUrl) {
+function saveDraft(body, imageUrl, platform) {
   var sheet = getSheet();
   var id = generateId();
-  sheet.appendRow([id, 'draft', body, imageUrl || '', '', '']);
+  sheet.appendRow([id, 'draft', body, imageUrl || '', '', '', platform || 'threads', '']);
   return { success: true, id: id };
 }
 
@@ -93,10 +93,10 @@ function saveDraft(body, imageUrl) {
 // 予約投稿保存
 // ====================
 
-function schedulePost(body, imageUrl, scheduledAt) {
+function schedulePost(body, imageUrl, scheduledAt, platform) {
   var sheet = getSheet();
   var id = generateId();
-  sheet.appendRow([id, 'scheduled', body, imageUrl || '', scheduledAt, '']);
+  sheet.appendRow([id, 'scheduled', body, imageUrl || '', scheduledAt, '', platform || 'threads', '']);
   ensureTrigger();
   return { success: true, id: id };
 }
@@ -105,13 +105,14 @@ function schedulePost(body, imageUrl, scheduledAt) {
 // 即時投稿
 // ====================
 
-function postNow(body, imageUrl) {
+function postNow(body, imageUrl, platform) {
   var sheet = getSheet();
   var id = generateId();
-  var result = publishToThreads(body, imageUrl);
+  platform = platform || 'threads';
+  var result = publishPost(body, imageUrl, platform);
   if (result.success) {
     var now = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss");
-    sheet.appendRow([id, 'posted', body, imageUrl || '', '', now]);
+    sheet.appendRow([id, 'posted', body, imageUrl || '', '', now, platform, '']);
   }
   return result;
 }
@@ -120,7 +121,7 @@ function postNow(body, imageUrl) {
 // 投稿編集
 // ====================
 
-function updatePost(id, body, imageUrl, scheduledAt, status) {
+function updatePost(id, body, imageUrl, scheduledAt, status, platform) {
   var sheet = getSheet();
   var data = sheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
@@ -131,6 +132,9 @@ function updatePost(id, body, imageUrl, scheduledAt, status) {
       sheet.getRange(row, 4).setValue(imageUrl || '');
       if (scheduledAt) {
         sheet.getRange(row, 5).setValue(scheduledAt);
+      }
+      if (platform) {
+        sheet.getRange(row, 7).setValue(platform);
       }
       if (status === 'scheduled') {
         ensureTrigger();
@@ -315,8 +319,9 @@ function createThreadsContainer(apiBase, accessToken, params) {
 // 既存投稿を即時公開
 // ====================
 
-function publishExistingPost(id, body, imageUrls) {
-  var result = publishToThreads(body, imageUrls);
+function publishExistingPost(id, body, imageUrls, platform) {
+  platform = platform || 'threads';
+  var result = publishPost(body, imageUrls, platform);
   if (result.success) {
     var sheet = getSheet();
     var data = sheet.getDataRange().getValues();
@@ -328,6 +333,8 @@ function publishExistingPost(id, body, imageUrls) {
         sheet.getRange(row, 4).setValue(imageUrls || '');
         var now = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss");
         sheet.getRange(row, 6).setValue(now);
+        sheet.getRange(row, 7).setValue(platform);
+        sheet.getRange(row, 8).setValue('');
         break;
       }
     }
@@ -353,14 +360,19 @@ function checkScheduledPosts() {
 
     var body = data[i][2];
     var imageUrl = data[i][3];
+    var platform = data[i][6] || 'threads';
     var row = i + 1;
 
-    var result = publishToThreads(body, imageUrl);
+    var result = publishPost(body, imageUrl, platform);
     if (result.success) {
       var postedAt = Utilities.formatDate(now, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss");
       sheet.getRange(row, 2).setValue('posted');
       sheet.getRange(row, 6).setValue(postedAt);
+      sheet.getRange(row, 8).setValue('');
     } else {
+      // 失敗は failed として記録し、一覧から再投稿できるようにする。
+      sheet.getRange(row, 2).setValue('failed');
+      sheet.getRange(row, 8).setValue(result.error || '');
       Logger.log('予約投稿失敗 (row ' + row + '): ' + result.error);
     }
   }
