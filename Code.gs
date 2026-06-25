@@ -692,16 +692,17 @@ function uploadXMedia(blob, token) {
   var mimeType = blob.getContentType() || 'image/jpeg';
   var authHeader = { 'Authorization': 'Bearer ' + token };
 
-  // INIT
+  // INIT（X API v2 は JSON ボディ必須）
   var initRes = UrlFetchApp.fetch(base, {
     method: 'post',
+    contentType: 'application/json',
     headers: authHeader,
-    payload: {
+    payload: JSON.stringify({
       command: 'INIT',
-      total_bytes: String(totalBytes),
+      total_bytes: totalBytes,
       media_type: mimeType,
       media_category: 'tweet_image'
-    },
+    }),
     muteHttpExceptions: true
   });
   var initData = JSON.parse(initRes.getContentText());
@@ -733,14 +734,15 @@ function uploadXMedia(blob, token) {
     segmentIndex++;
   }
 
-  // FINALIZE
+  // FINALIZE（X API v2 は JSON ボディ必須）
   var finalizeRes = UrlFetchApp.fetch(base, {
     method: 'post',
+    contentType: 'application/json',
     headers: authHeader,
-    payload: {
+    payload: JSON.stringify({
       command: 'FINALIZE',
       media_id: mediaId
-    },
+    }),
     muteHttpExceptions: true
   });
   var finalizeData = JSON.parse(finalizeRes.getContentText());
