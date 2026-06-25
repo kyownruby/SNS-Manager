@@ -536,6 +536,17 @@ function startXAuth() {
   return { success: true, authUrl: authUrl };
 }
 
+// GASエディタから手動で認可フローを開始する用。実行ログに認可URLを全文出力する。
+// （デバッガの変数パネルは長い文字列を省略するため、Logger.log で確実に全文を得る）
+function logXAuthUrl() {
+  var result = startXAuth();
+  if (result.success) {
+    Logger.log(result.authUrl);
+  } else {
+    Logger.log('エラー: ' + result.error);
+  }
+}
+
 // /2/oauth2/token を叩く共通処理（confidential client は Basic 認証）。
 function exchangeXToken(payload) {
   var config = getXConfig();
