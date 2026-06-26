@@ -438,15 +438,15 @@
       <div class="form-group">
         <label>投稿先</label>
         <div class="platform-select" id="platformSelect">
-          <label class="sel-threads"><input type="radio" name="platform" value="threads" checked onchange="onPlatformChange()"> Threads</label>
-          <label><input type="radio" name="platform" value="x" onchange="onPlatformChange()"> X</label>
+          <label class="sel-x"><input type="radio" name="platform" value="x" checked onchange="onPlatformChange()"> X</label>
+          <label><input type="radio" name="platform" value="threads" onchange="onPlatformChange()"> Threads</label>
         </div>
       </div>
 
       <div class="form-group">
         <label>投稿内容</label>
         <textarea id="postBody" placeholder="ここに投稿内容を入力..." oninput="updateCharCount()"></textarea>
-        <div id="charCount" class="char-count">0 / 500</div>
+        <div id="charCount" class="char-count">0 / 280</div>
       </div>
 
       <div class="form-group">
@@ -511,8 +511,8 @@
       <div class="form-group">
         <label>投稿先</label>
         <div class="platform-select" id="editPlatformSelect">
-          <label class="sel-threads"><input type="radio" name="editPlatform" value="threads" checked onchange="onEditPlatformChange()"> Threads</label>
-          <label><input type="radio" name="editPlatform" value="x" onchange="onEditPlatformChange()"> X</label>
+          <label class="sel-x"><input type="radio" name="editPlatform" value="x" checked onchange="onEditPlatformChange()"> X</label>
+          <label><input type="radio" name="editPlatform" value="threads" onchange="onEditPlatformChange()"> Threads</label>
         </div>
       </div>
       <div class="form-group">
@@ -595,8 +595,8 @@
     function onPlatformChange() {
       var platform = getSelectedPlatform();
       var labels = document.querySelectorAll('#platformSelect label');
-      labels[0].className = platform === 'threads' ? 'sel-threads' : '';
-      labels[1].className = platform === 'x' ? 'sel-x' : '';
+      labels[0].className = platform === 'x' ? 'sel-x' : '';
+      labels[1].className = platform === 'threads' ? 'sel-threads' : '';
       updateCharCount();
     }
 
@@ -1164,8 +1164,8 @@
     function onEditPlatformChange() {
       var platform = getEditPlatform();
       var labels = document.querySelectorAll('#editPlatformSelect label');
-      labels[0].className = platform === 'threads' ? 'sel-threads' : '';
-      labels[1].className = platform === 'x' ? 'sel-x' : '';
+      labels[0].className = platform === 'x' ? 'sel-x' : '';
+      labels[1].className = platform === 'threads' ? 'sel-threads' : '';
     }
 
     function openEdit(postJson) {
