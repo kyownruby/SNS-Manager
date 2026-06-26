@@ -684,76 +684,36 @@ function fetchImageBytes(imageUrl) {
   return res.getBlob();
 }
 
-// メディアアップロード（INIT → APPEND → FINALIZE）。media_id を返す。
+// メディアアップロード（X API v2 シンプル方式：base64 で media を1回POST）。media_id を返す。
 function uploadXMedia(blob, token) {
   var base = 'https://api.x.com/2/media/upload';
-  var bytes = blob.getBytes();
-  var totalBytes = bytes.length;
   var mimeType = blob.getContentType() || 'image/jpeg';
-  var authHeader = { 'Authorization': 'Bearer ' + token };
+  var base64 = Utilities.base64Encode(blob.getBytes());
 
-  // INIT（X API v2 は JSON ボディ必須）
-  var initRes = UrlFetchApp.fetch(base, {
+  var res = UrlFetchApp.fetch(base, {
     method: 'post',
     contentType: 'application/json',
-    headers: authHeader,
+    headers: { 'Authorization': 'Bearer ' + token },
     payload: JSON.stringify({
-      command: 'INIT',
-      total_bytes: totalBytes,
-      media_type: mimeType,
-      media_category: 'tweet_image'
+      media: base64,
+      media_category: 'tweet_image',
+      media_type: mimeType
     }),
     muteHttpExceptions: true
   });
-  var initData = JSON.parse(initRes.getContentText());
-  var mediaId = (initData.data && initData.data.id) || initData.media_id_string || initData.media_id;
+
+  var data = JSON.parse(res.getContentText());
+  var mediaId = (data.data && data.data.id) || data.media_id_string || data.id;
   if (!mediaId) {
-    throw new Error('メディア INIT 失敗: ' + initRes.getContentText());
+    throw new Error('メディアアップロード失敗: ' + res.getContentText());
   }
-
-  // APPEND（5MB 以下のチャンクに分割し segment_index を連番で送信）
-  var chunkSize = 5 * 1024 * 1024;
-  var segmentIndex = 0;
-  for (var offset = 0; offset < totalBytes; offset += chunkSize) {
-    var end = Math.min(offset + chunkSize, totalBytes);
-    var chunkBlob = Utilities.newBlob(bytes.slice(offset, end), mimeType, 'chunk' + segmentIndex);
-    var appendRes = UrlFetchApp.fetch(base, {
-      method: 'post',
-      headers: authHeader,
-      payload: {
-        command: 'APPEND',
-        media_id: mediaId,
-        segment_index: String(segmentIndex),
-        media: chunkBlob
-      },
-      muteHttpExceptions: true
-    });
-    if (appendRes.getResponseCode() >= 300) {
-      throw new Error('メディア APPEND 失敗 (seg ' + segmentIndex + '): ' + appendRes.getContentText());
-    }
-    segmentIndex++;
-  }
-
-  // FINALIZE（X API v2 は JSON ボディ必須）
-  var finalizeRes = UrlFetchApp.fetch(base, {
-    method: 'post',
-    contentType: 'application/json',
-    headers: authHeader,
-    payload: JSON.stringify({
-      command: 'FINALIZE',
-      media_id: mediaId
-    }),
-    muteHttpExceptions: true
-  });
-  var finalizeData = JSON.parse(finalizeRes.getContentText());
-  var finalId = (finalizeData.data && finalizeData.data.id) || mediaId;
 
   // 動画/GIF で processing_info がある場合のみ完了までポーリング（静止画は不要）。
-  var processingInfo = (finalizeData.data && finalizeData.data.processing_info) || finalizeData.processing_info;
+  var processingInfo = (data.data && data.data.processing_info) || data.processing_info;
   if (processingInfo) {
-    waitForXMediaReady(finalId, token);
+    waitForXMediaReady(mediaId, token);
   }
-  return finalId;
+  return mediaId;
 }
 
 // （動画/GIF 用）processing_info が succeeded になるまでポーリング。
